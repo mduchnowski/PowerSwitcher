@@ -24,9 +24,10 @@ OUTLET_BASE = 0
 
 # === Config file location ===
 CONFIG_PATH = Path.home() / ".cue_switchboard.json"
+SEQUENCES_DIR = Path(__file__).parent / "sequences"
 
-COLUMNS = ["Cue", "Order"] + [f"Switch{i}" for i in range(1, 9)]
-SWITCH_COLUMNS = set(COLUMNS[2:])  # Switch1..Switch8
+COLUMNS = ["Cue", "Order", "Sequence"] + [f"Switch{i}" for i in range(1, 9)]
+SWITCH_COLUMNS = set(COLUMNS[3:])  # Switch1..Switch8
 
 
 # === Domain callback that receives the selected cue as a dict ===
@@ -50,6 +51,7 @@ class CueEditorDialog(tk.Toplevel):
             else (suggested_order if suggested_order is not None else "")
         )
         self.var_order = tk.StringVar(value=str(default_order) if default_order != "" else "")
+        self.var_sequence = tk.StringVar(value=(initial.get("Sequence") if initial else ""))
         self.switch_vars = []
         for i in range(8):
             val = bool(initial.get(f"Switch{i+1}", False)) if initial else False
@@ -65,14 +67,16 @@ class CueEditorDialog(tk.Toplevel):
         ttk.Label(frm, text="Cue order:").grid(row=1, column=0, sticky="e", padx=(0, 8), pady=4)
         ttk.Entry(frm, textvariable=self.var_order, width=10).grid(row=1, column=1, sticky="w", pady=4)
 
+        ttk.Label(frm, text="Sequence:").grid(row=2, column=0, sticky="e", padx=(0, 8), pady=4)
+        ttk.Entry(frm, textvariable=self.var_sequence, width=40).grid(row=2, column=1, sticky="w", pady=4)
         sw_frame = ttk.LabelFrame(frm, text="Cue switches", padding=(10, 8))
-        sw_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        sw_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         for i in range(8):
             ttk.Checkbutton(sw_frame, text=f"Switch{i+1}", variable=self.switch_vars[i])\
-                .grid(row=i // 4, column=i % 4, sticky="w", padx=6, pady=4)
+            .grid(row=i // 4, column=i % 4, sticky="w", padx=6, pady=4)
 
         btns = ttk.Frame(frm)
-        btns.grid(row=3, column=0, columnspan=2, sticky="e", pady=(12, 0))
+        btns.grid(row=4, column=0, columnspan=2, sticky="e", pady=(12, 0))
         ttk.Button(btns, text="Cancel", command=self._on_cancel).grid(row=0, column=0, padx=(0, 8))
         ttk.Button(btns, text="OK", command=self._on_ok).grid(row=0, column=1)
 
@@ -96,11 +100,196 @@ class CueEditorDialog(tk.Toplevel):
                 messagebox.showwarning("Invalid Order", "Cue order must be an integer (or leave blank).")
                 return
 
-        cue_dict = {"Cue": cue, "Order": order_val}
+        cue_dict = {"Cue": cue, "Order": order_val, "Sequence": self.var_sequence.get().strip()}
         for i, var in enumerate(self.switch_vars, 1):
             cue_dict[f"Switch{i}"] = bool(var.get())
 
         self.result = cue_dict
+        self.destroy()
+
+    def _on_cancel(self):
+        self.result = None
+        self.destroy()
+
+
+class StepEditorDialog(tk.Toplevel):
+    """Dialog to add/edit a single sequence step: switch (int), position (bool), delay (int)."""
+    def __init__(self, master, title: str, initial: Optional[Dict] = None):
+        super().__init__(master)
+        self.title(title)
+        self.resizable(False, False)
+        self.transient(master)
+        self.grab_set()
+
+        self.var_switch = tk.StringVar(value=str(initial.get("switch") if initial else ""))
+        self.var_position = tk.BooleanVar(value=bool(initial.get("position", False)) if initial else False)
+        self.var_delay = tk.StringVar(value=str(initial.get("delay") if initial else ""))
+
+        frm = ttk.Frame(self, padding=12)
+        frm.grid(row=0, column=0, sticky="nsew")
+
+        ttk.Label(frm, text="Switch:").grid(row=0, column=0, sticky="e", padx=(0, 8), pady=4)
+        ttk.Entry(frm, textvariable=self.var_switch, width=12).grid(row=0, column=1, sticky="w", pady=4)
+
+        ttk.Label(frm, text="Position:").grid(row=1, column=0, sticky="e", padx=(0, 8), pady=4)
+        ttk.Checkbutton(frm, variable=self.var_position, text="On/True").grid(row=1, column=1, sticky="w", pady=4)
+
+        ttk.Label(frm, text="Delay (ms):").grid(row=2, column=0, sticky="e", padx=(0, 8), pady=4)
+        ttk.Entry(frm, textvariable=self.var_delay, width=12).grid(row=2, column=1, sticky="w", pady=4)
+
+        btns = ttk.Frame(frm)
+        btns.grid(row=3, column=0, columnspan=2, sticky="e", pady=(12, 0))
+        ttk.Button(btns, text="Cancel", command=self._on_cancel).grid(row=0, column=0, padx=(0, 8))
+        ttk.Button(btns, text="OK", command=self._on_ok).grid(row=0, column=1)
+
+        self.result = None
+        self.bind("<Return>", lambda e: self._on_ok())
+        self.bind("<Escape>", lambda e: self._on_cancel())
+
+    def _on_ok(self):
+        # Validate switch and delay as integers
+        sw_text = self.var_switch.get().strip()
+        delay_text = self.var_delay.get().strip()
+        try:
+            sw = int(sw_text)
+        except Exception:
+            messagebox.showwarning("Invalid Switch", "Switch must be an integer.")
+            return
+        try:
+            delay = int(delay_text) if delay_text != "" else 0
+        except Exception:
+            messagebox.showwarning("Invalid Delay", "Delay must be an integer (milliseconds).")
+            return
+
+        self.result = {"switch": sw, "position": bool(self.var_position.get()), "delay": delay}
+        self.destroy()
+
+    def _on_cancel(self):
+        self.result = None
+        self.destroy()
+
+
+class SequenceEditorDialog(tk.Toplevel):
+    """Dialog to create or edit a sequence file (collection of steps).
+
+    Returns a tuple (filename, steps) in `self.result` on OK, where `steps` is a
+    list of dicts: {"switch":int, "position":bool, "delay":int}.
+    """
+    def __init__(self, master, title: str, initial_file: Optional[str] = None, initial_steps: Optional[list] = None):
+        super().__init__(master)
+        self.title(title)
+        self.resizable(False, False)
+        self.transient(master)
+        self.grab_set()
+
+        self.var_filename = tk.StringVar(value=(initial_file if initial_file else "new_sequence"))
+
+        frm = ttk.Frame(self, padding=8)
+        frm.grid(row=0, column=0, sticky="nsew")
+
+        ttk.Label(frm, text="File name:").grid(row=0, column=0, sticky="e", padx=(0, 8), pady=4)
+        ttk.Entry(frm, textvariable=self.var_filename, width=36).grid(row=0, column=1, sticky="w", pady=4)
+
+        # Steps Tree
+        cols = ("Switch", "Position", "Delay")
+        self.tree = ttk.Treeview(frm, columns=cols, show="headings", selectmode="browse", height=8)
+        for c in cols:
+            self.tree.heading(c, text=c)
+            self.tree.column(c, width=80, anchor="center")
+        self.tree.column("Switch", width=80, anchor="center")
+        self.tree.column("Position", width=80, anchor="center")
+        self.tree.column("Delay", width=100, anchor="e")
+        self.tree.grid(row=1, column=0, columnspan=2, sticky="nsew", pady=(4, 0))
+
+        btn_frame = ttk.Frame(frm)
+        btn_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        ttk.Button(btn_frame, text="Add Step", command=self._on_add_step).grid(row=0, column=0, padx=4)
+        ttk.Button(btn_frame, text="Edit Step", command=self._on_edit_step).grid(row=0, column=1, padx=4)
+        ttk.Button(btn_frame, text="Remove Step", command=self._on_remove_step).grid(row=0, column=2, padx=4)
+
+        # Save/Cancel
+        ctl = ttk.Frame(frm)
+        ctl.grid(row=3, column=0, columnspan=2, sticky="e", pady=(12, 0))
+        ttk.Button(ctl, text="Cancel", command=self._on_cancel).grid(row=0, column=0, padx=(0, 8))
+        ttk.Button(ctl, text="Save", command=self._on_save).grid(row=0, column=1)
+
+        self.result = None
+
+        # Load initial steps
+        self._load_steps(initial_steps or [])
+
+        self.bind("<Return>", lambda e: self._on_save())
+        self.bind("<Escape>", lambda e: self._on_cancel())
+
+    def _load_steps(self, steps: list):
+        for iid in self.tree.get_children():
+            self.tree.delete(iid)
+        for s in steps:
+            sw = s.get("switch")
+            pos = s.get("position")
+            delay = s.get("delay")
+            vals = [str(sw), "True" if pos else "False", str(delay)]
+            self.tree.insert("", "end", values=vals)
+
+    def _gather_steps(self):
+        out = []
+        for iid in self.tree.get_children():
+            v = self.tree.item(iid, "values")
+            try:
+                sw = int(v[0])
+            except Exception:
+                sw = 0
+            pos = str(v[1]).strip().lower() in {"1", "true", "t", "yes", "y", "on"}
+            try:
+                delay = int(v[2])
+            except Exception:
+                delay = 0
+            out.append({"switch": sw, "position": pos, "delay": delay})
+        return out
+
+    def _on_add_step(self):
+        dlg = StepEditorDialog(self, "Add Step")
+        self.wait_window(dlg)
+        if dlg.result is None:
+            return
+        step = dlg.result
+        vals = [str(step["switch"]), "True" if step["position"] else "False", str(step["delay"])]
+        self.tree.insert("", "end", values=vals)
+
+    def _on_edit_step(self):
+        sel = self.tree.selection()
+        if not sel:
+            messagebox.showinfo("Edit Step", "Please select a step to edit.")
+            return
+        iid = sel[0]
+        vals = self.tree.item(iid, "values")
+        initial = {"switch": int(vals[0]) if vals[0] else 0, "position": vals[1].lower() in {"true","1","t","y"}, "delay": int(vals[2]) if vals[2] else 0}
+        dlg = StepEditorDialog(self, "Edit Step", initial=initial)
+        self.wait_window(dlg)
+        if dlg.result is None:
+            return
+        step = dlg.result
+        new_vals = [str(step["switch"]), "True" if step["position"] else "False", str(step["delay"])]
+        self.tree.item(iid, values=new_vals)
+
+    def _on_remove_step(self):
+        sel = self.tree.selection()
+        if not sel:
+            messagebox.showinfo("Remove Step", "Please select a step to remove.")
+            return
+        for iid in sel:
+            self.tree.delete(iid)
+
+    def _on_save(self):
+        name = self.var_filename.get().strip()
+        if not name:
+            messagebox.showwarning("Missing Name", "Please enter a filename for the sequence.")
+            return
+        # strip extension
+        if name.lower().endswith('.xml'):
+            name = name[:-4]
+        steps = self._gather_steps()
+        self.result = (name, steps)
         self.destroy()
 
     def _on_cancel(self):
@@ -159,6 +348,7 @@ class CueTableApp(tk.Tk):
             self.tree.column(col, width=100, anchor="center", stretch=True)
         self.tree.column("Cue", width=240, anchor="w")
         self.tree.column("Order", width=90, anchor="e")
+        self.tree.column("Sequence", width=160, anchor="center")
 
         # Layout stretch
         self.rowconfigure(0, weight=1)
@@ -375,6 +565,12 @@ class CueTableApp(tk.Tk):
         cue_menu.add_command(label="Edit Selected Cue…", command=self._menu_edit_selected, accelerator="Ctrl+E")
         menubar.add_cascade(label="Cue", menu=cue_menu)
 
+        # Sequence
+        seq_menu = tk.Menu(menubar, tearoff=False)
+        seq_menu.add_command(label="Add New Sequence…", command=self._menu_add_new_sequence)
+        seq_menu.add_command(label="Edit Sequence File…", command=self._menu_edit_sequence)
+        menubar.add_cascade(label="Sequence", menu=seq_menu)
+
         self.config(menu=menubar)
 
         # Shortcuts
@@ -431,6 +627,84 @@ class CueTableApp(tk.Tk):
 
     def _menu_exit(self):
         self.on_closing()
+
+    # ------------------ Sequence menu handlers ------------------
+    def _ensure_sequences_dir(self):
+        try:
+            SEQUENCES_DIR.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+
+    def _menu_add_new_sequence(self):
+        """Create a new sequence file using the SequenceEditorDialog."""
+        self._ensure_sequences_dir()
+        dlg = SequenceEditorDialog(self, "New Sequence", initial_file=None)
+        self.wait_window(dlg)
+        if dlg.result is None:
+            return
+        filename, steps = dlg.result
+        path = SEQUENCES_DIR / (filename if filename.endswith('.xml') else filename + '.xml')
+        try:
+            self._write_sequence_xml(str(path), steps)
+            messagebox.showinfo("Sequence Saved", f"Sequence saved to:\n{path}")
+        except Exception as e:
+            messagebox.showerror("Save Failed", f"Could not save sequence:\n{e}")
+
+    def _menu_edit_sequence(self):
+        self._ensure_sequences_dir()
+        path = filedialog.askopenfilename(title="Open Sequence File", initialdir=str(SEQUENCES_DIR), filetypes=[("XML files","*.xml"), ("All files","*.*")])
+        if not path:
+            return
+        try:
+            steps = self._read_sequence_xml(path)
+        except Exception as e:
+            messagebox.showerror("Open Failed", f"Could not open sequence:\n{e}")
+            return
+        initial_file = Path(path).name
+        dlg = SequenceEditorDialog(self, f"Edit Sequence — {initial_file}", initial_file=initial_file, initial_steps=steps)
+        self.wait_window(dlg)
+        if dlg.result is None:
+            return
+        filename, steps = dlg.result
+        save_path = SEQUENCES_DIR / (filename if filename.endswith('.xml') else filename + '.xml')
+        try:
+            self._write_sequence_xml(str(save_path), steps)
+            messagebox.showinfo("Sequence Saved", f"Sequence saved to:\n{save_path}")
+        except Exception as e:
+            messagebox.showerror("Save Failed", f"Could not save sequence:\n{e}")
+
+    # ------------------ Sequence XML I/O ------------------
+    def _read_sequence_xml(self, path: str) -> list:
+        tree = ET.parse(path)
+        root = tree.getroot()
+        if root.tag != "Sequence":
+            # allow root 'Sequence' or read step elements regardless
+            pass
+        steps = []
+        for step_el in root.findall("Step"):
+            sw_raw = step_el.get("switch") or step_el.get("Switch") or step_el.get("channel")
+            try:
+                sw = int(sw_raw) if sw_raw is not None else 0
+            except Exception:
+                sw = 0
+            pos_raw = step_el.get("position") or step_el.get("Position") or step_el.get("state")
+            pos = str(pos_raw).strip().lower() in {"1", "true", "t", "yes", "y", "on"}
+            delay_raw = step_el.get("delay") or step_el.get("Delay") or step_el.text
+            try:
+                delay = int(delay_raw) if delay_raw is not None else 0
+            except Exception:
+                delay = 0
+            steps.append({"switch": sw, "position": pos, "delay": delay})
+        return steps
+
+    def _write_sequence_xml(self, path: str, steps: list):
+        root = ET.Element("Sequence")
+        for s in steps:
+            el = ET.SubElement(root, "Step")
+            el.set("switch", str(s.get("switch", 0)))
+            el.set("position", "true" if bool(s.get("position", False)) else "false")
+            el.set("delay", str(int(s.get("delay", 0))))
+        ET.ElementTree(root).write(path, encoding="utf-8", xml_declaration=True)
 
     def _update_title(self):
         suffix = f" — {self.current_file}" if self.current_file else ""
@@ -577,8 +851,9 @@ class CueTableApp(tk.Tk):
             name = cue_el.get("name", "")
             order_raw = cue_el.get("order", "")
             order = self._safe_int(order_raw)
+            sequence = cue_el.get("sequence", "")
 
-            cue = {"Cue": name, "Order": order}
+            cue = {"Cue": name, "Order": order, "Sequence": sequence}
             for i in range(1, 9):
                 tag = f"Switch{i}"
                 val_el = cue_el.find(tag)
@@ -595,9 +870,10 @@ class CueTableApp(tk.Tk):
             cue_el.set("name", str(r.get("Cue", "")))
             order = r.get("Order")
             cue_el.set("order", str(order if order is not None else ""))
+            cue_el.set("sequence", str(r.get("Sequence", "")))
 
             for i in range(1, 9):
-                s = ET.SubElement(cues_el, f"Switch{i}")
+                s = ET.SubElement(cue_el, f"Switch{i}")
                 s.text = "true" if bool(r.get(f"Switch{i}", False)) else "false"
 
         ET.ElementTree(cues_el).write(path, encoding="utf-8", xml_declaration=True)
