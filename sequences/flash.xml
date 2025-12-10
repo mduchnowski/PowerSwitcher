@@ -1,0 +1,2 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Sequence><Step switch="1" position="true" delay="400" /><Step switch="1" position="false" delay="400" /><Step switch="2" position="true" delay="10" /><Step switch="1" position="false" delay="400" /><Step switch="2" position="true" delay="10" /></Sequence>
