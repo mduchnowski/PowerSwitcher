@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Cues>
+  <Cue name="Curtain Up" order="1">
+    <Switch1>true</Switch1><Switch2>false</Switch2><Switch3>false</Switch3><Switch4>false</Switch4><Switch5>false</Switch5><Switch6>false</Switch6><Switch7>false</Switch7><Switch8>false</Switch8>
+  </Cue>
+  <Cue name="Act I Scene 1" order="2">
+    <Switch1>true</Switch1><Switch2>true</Switch2><Switch3>false</Switch3><Switch4>false</Switch4><Switch5>false</Switch5><Switch6>false</Switch6><Switch7>false</Switch7><Switch8>false</Switch8>
+  </Cue>
+  <Cue name="Act I Scene 2" order="3">
+    <Switch1>false</Switch1><Switch2>true</Switch2><Switch3>false</Switch3><Switch4>false</Switch4><Switch5>false</Switch5><Switch6>false</Switch6><Switch7>false</Switch7><Switch8>false</Switch8>
+  </Cue>
+  <Cue name="Act I Scene 3" order="4">
+    <Switch1>true</Switch1><Switch2>false</Switch2><Switch3>true</Switch3><Switch4>false</Switch4><Switch5>false</Switch5><Switch6>false</Switch6><Switch7>false</Switch7><Switch8>false</Switch8>
+  </Cue>
+  <Cue name="Act I Scene 4" order="5">
+    <Switch1>false</Switch1><Switch2>false</Switch2><Switch3>true</Switch3><Switch4>false</Switch4><Switch5>false</Switch5><Switch6>false</Switch6><Switch7>false</Switch7><Switch8>false</Switch8>
+  </Cue>
+  <Cue name="Act I Scene 5" order="6">
+    <Switch1>true</Switch1><Switch2>true</Switch2><Switch3>true</Switch3><Switch4>false</Switch4><Switch5>false</Switch5><Switch6>false</Switch6><Switch7>false</Switch7><Switch8>false</Switch8>
+  </Cue>
+  <Cue name="Act I Scene 6" order="7">
+    <Switch1>false</Switch1><Switch2>true</Switch2><Switch3>true</Switch3><Switch4>false</Switch4><Switch5>false</Switch5><Switch6>false</Switch6><Switch7>false</Switch7><Switch8>false</Switch8>
+  </Cue>
+  <Cue name="Act I Scene 7" order="8">
+    <Switch1>true</Switch1><Switch2>false</Switch2><Switch3>false</Switch3><Switch4>false</Switch4><Switch5>false</Switch5><Switch6>false</Switch6><Switch7>false</Switch7><Switch8>false</Switch8>
+  </Cue>
+  <Cue name="Act I Scene 8" order="9">
+    <Switch1>false</Switch1><Switch2>true</Switch2><Switch3>false</Switch3><Switch4>false</Switch4><Switch5>false</Switch5><Switch6>false</Switch6><Switch7>false</Switch7><Switch8>false</Switch8>
+  </Cue>
+  <Cue name="Intermission" order="10">
+    <Switch1>false</Switch1><Switch2>false</Switch2><Switch3>false</Switch3><Switch4>false</Switch4><Switch5>false</Switch5><Switch6>false</Switch6><Switch7>false</Switch7><Switch8>false</Switch8>
+  </Cue>
+  <Cue name="Act II Scene 1" order="11">
+    <Switch1>true</Switch1><Switch2>false</Switch2><Switch3>true</Switch3><Switch4>false</Switch4><Switch5>false</Switch5><Switch6>false</Switch6><Switch7>false</Switch7><Switch8>false</Switch8>
+  </Cue>
+  <Cue name="Act II Scene 2" order="12">
+    <Switch1>true</Switch1><Switch2>true</Switch2><Switch3>false</Switch3><Switch4>false</Switch4><Switch5>false</Switch5><Switch6>false</Switch6><Switch7>false</Switch7><Switch8>false</Switch8>
+  </Cue>
+  <Cue name="Act II Scene 3" order="13">
+    <Switch1>false</Switch1><Switch2>false</Switch2><Switch3>true</Switch3><Switch4>false</Switch4><Switch5>false</Switch5><Switch6>false</Switch6><Switch7>false</Switch7><Switch8>false</Switch8>
+  </Cue>
+  <Cue name="Act II Scene 4" order="14">
+    <Switch1>false</Switch1><Switch2>true</Switch2><Switch3>true</Switch3><Switch4>false</Switch4><Switch5>false</Switch5><Switch6>false</Switch6><Switch7>false</Switch7><Switch8>false</Switch8>
+  </Cue>
+  <Cue name="Act II Scene 5" order="15">
+    <Switch1>true</Switch1><Switch2>true</Switch2><Switch3>true</Switch3><Switch4>false</Switch4><Switch5>false</Switch5><Switch6>false</Switch6><Switch7>false</Switch7><Switch8>false</Switch8>
+  </Cue>
+  <Cue name="Act II Scene 6" order="16">
+    <Switch1>false</Switch1><Switch2>true</Switch2><Switch3>false</Switch3><Switch4>false</Switch4><Switch5>false</Switch5><Switch6>false</Switch6><Switch7>false</Switch7><Switch8>false</Switch8>
+  </Cue>
+  <Cue name="Act II Scene 7" order="17">
+    <Switch1>true</Switch1><Switch2>false</Switch2><Switch3>false</Switch3><Switch4>false</Switch4><Switch5>false</Switch5><Switch6>false</Switch6><Switch7>false</Switch7><Switch8>false</Switch8>
+  </Cue>
+  <Cue name="Act II Scene 8" order="18">
+    <Switch1>true</Switch1><Switch2>true</Switch2><Switch3>false</Switch3><Switch4>false</Switch4><Switch5>false</Switch5><Switch6>false</Switch6><Switch7>false</Switch7><Switch8>false</Switch8>
+  </Cue>
+  <Cue name="Curtain Call" order="19">
+    <Switch1>true</Switch1><Switch2>false</Switch2><Switch3>true</Switch3><Switch4>false</Switch4><Switch5>false</Switch5><Switch6>false</Switch6><Switch7>false</Switch7><Switch8>false</Switch8>
+  </Cue>
+  <Cue name="End" order="20">
+    <Switch1>false</Switch1><Switch2>false</Switch2><Switch3>false</Switch3><Switch4>false</Switch4><Switch5>false</Switch5><Switch6>false</Switch6><Switch7>false</Switch7><Switch8>false</Switch8>
+  </Cue>
+</Cues>
