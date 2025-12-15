@@ -480,6 +480,7 @@ class CueTableApp(tk.Tk):
             pass
         self.update_idletasks()
 
+
     # ------------------ HTTP send (async) ------------------
     def _build_pairs_from_cue(self, cue: Dict):
         """Return list of [channel, state] per Switch1..Switch8."""
@@ -496,7 +497,28 @@ class CueTableApp(tk.Tk):
         if not HAS_HTTPX:
             raise RuntimeError("httpx is not installed. Cannot send request.")
 
+        # Gathers the states from the datatable
         payload = [self._build_pairs_from_cue(cue)]  # [[[ch,state]...]] as per spec
+        
+        # Also capture the sequence name/string from the table for use by callers
+        sequence = (cue.get("Sequence") or "").strip()
+        # If a sequence is specified, resolve and execute the sequence file instead of the single payload
+        if sequence:
+            seq_filename = sequence if sequence.lower().endswith('.xml') else sequence + '.xml'
+            seq_path = SEQUENCES_DIR / seq_filename
+            if seq_path.exists():
+                execute_sequence_from_file(
+                    str(seq_path),
+                    base_url=f"http://{self.device_host}",
+                    username=self.device_user,
+                    password=self.device_pass,
+                    timeout=DLI_TIMEOUT,
+                )
+            else:
+                raise FileNotFoundError(f"Sequence file not found: {seq_path}")
+
+
+        # Proceed with the states for this row
         url = f"http://{self.device_host}/restapi/relay/set_outlet_transient_states/"
         headers = {"X-CSRF": "x", "Content-Type": "application/json"}
         auth = httpx.DigestAuth(self.device_user, self.device_pass)
@@ -733,10 +755,10 @@ class CueTableApp(tk.Tk):
                 )
             except Exception as e:
                 msg = str(e)
-                self._safe_after(0, lambda: messagebox.showerror("Run Failed", f"Sequence execution failed:\n{msg}"))
+                # self._safe_after(0, lambda: messagebox.showerror("Run Failed", f"Sequence execution failed:\n{msg}"))
                 self._safe_after(0, lambda m=msg: self.dli_status.set(f"DLI (HTTP) error: {m}"))
             else:
-                self._safe_after(0, lambda: messagebox.showinfo("Run Complete", "Sequence executed successfully."))
+                # self._safe_after(0, lambda: messagebox.showinfo("Run Complete", "Sequence executed successfully."))
                 self._safe_after(0, lambda: self.dli_status.set("DLI (HTTP): sequence run complete"))
             finally:
                 self._safe_after(0, lambda: self._set_busy(False))
