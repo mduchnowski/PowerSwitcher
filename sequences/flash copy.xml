@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Sequence>
+
+    <State name="AllOff">
+        <Steps>
+            <Step switch="0" position="false" />
+            <Step switch="2" position="false" />
+            <Step switch="3" position="false" />
+        </Steps>
+        <Delay>1000</Delay>
+    </State>
+
+    <State name="AllOn">
+        <Steps>
+            <Step switch="0" position="true" />
+            <Step switch="2" position="true" />
+            <Step switch="3" position="true" />
+        </Steps>
+        <Delay>0</Delay>
+    </State>
+
+</Sequence>
