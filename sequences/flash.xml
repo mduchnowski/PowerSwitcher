@@ -1,2 +1,22 @@
-<?xml version='1.0' encoding='utf-8'?>
-<Sequence><Step switch="1" position="true" delay="400" /><Step switch="1" position="false" delay="400" /><Step switch="2" position="true" delay="10" /><Step switch="1" position="false" delay="400" /><Step switch="2" position="true" delay="10" /></Sequence>
+<?xml version="1.0" encoding="utf-8"?>
+<Cues>
+
+    <Cue name="Preset A" order="1" sequence="" delay="400">
+        <Switch1>true</Switch1>
+        <Switch2>false</Switch2>
+        <Switch3>true</Switch3>
+    </Cue>
+
+    <Cue name="Preset B" order="2">
+        <Switch1>false</Switch1>
+        <Switch2>true</Switch2>
+        <Switch3>false</Switch3>
+    </Cue>
+
+    <Cue name="Preset C" order="3" sequence="">
+        <Switch1>true</Switch1>
+        <Switch2>false</Switch2>
+        <Switch3>true</Switch3>
+    </Cue>
+
+</Cues>
