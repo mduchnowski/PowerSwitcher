@@ -5,6 +5,8 @@ from typing import List, Dict, Optional
 import threading
 import json
 from pathlib import Path
+import time
+import requests
 
 # --- HTTP control (use httpx Digest Auth to talk to DLI) ---
 try:
@@ -26,8 +28,8 @@ OUTLET_BASE = 0
 CONFIG_PATH = Path.home() / ".cue_switchboard.json"
 SEQUENCES_DIR = Path(__file__).parent / "sequences"
 
-COLUMNS = ["Cue", "Order", "Sequence"] + [f"Switch{i}" for i in range(1, 9)]
-SWITCH_COLUMNS = set(COLUMNS[3:])  # Switch1..Switch8
+COLUMNS = ["Cue", "Order", "Sequence", "Delay"] + [f"Switch{i}" for i in range(1, 9)]
+SWITCH_COLUMNS = set(COLUMNS[4:])  # Switch1..Switch8
 
 
 # === Domain callback that receives the selected cue as a dict ===
@@ -69,14 +71,20 @@ class CueEditorDialog(tk.Toplevel):
 
         ttk.Label(frm, text="Sequence:").grid(row=2, column=0, sticky="e", padx=(0, 8), pady=4)
         ttk.Entry(frm, textvariable=self.var_sequence, width=40).grid(row=2, column=1, sticky="w", pady=4)
+
+        # Delay field (milliseconds)
+        self.var_delay = tk.StringVar(value=str(initial.get("Delay") if initial and initial.get("Delay") is not None else ""))
+        ttk.Label(frm, text="Delay (ms):").grid(row=3, column=0, sticky="e", padx=(0, 8), pady=4)
+        ttk.Entry(frm, textvariable=self.var_delay, width=12).grid(row=3, column=1, sticky="w", pady=4)
+
         sw_frame = ttk.LabelFrame(frm, text="Cue switches", padding=(10, 8))
-        sw_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        sw_frame.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         for i in range(8):
             ttk.Checkbutton(sw_frame, text=f"Switch{i+1}", variable=self.switch_vars[i])\
             .grid(row=i // 4, column=i % 4, sticky="w", padx=6, pady=4)
 
         btns = ttk.Frame(frm)
-        btns.grid(row=4, column=0, columnspan=2, sticky="e", pady=(12, 0))
+        btns.grid(row=5, column=0, columnspan=2, sticky="e", pady=(12, 0))
         ttk.Button(btns, text="Cancel", command=self._on_cancel).grid(row=0, column=0, padx=(0, 8))
         ttk.Button(btns, text="OK", command=self._on_ok).grid(row=0, column=1)
 
@@ -100,7 +108,17 @@ class CueEditorDialog(tk.Toplevel):
                 messagebox.showwarning("Invalid Order", "Cue order must be an integer (or leave blank).")
                 return
 
-        cue_dict = {"Cue": cue, "Order": order_val, "Sequence": self.var_sequence.get().strip()}
+        # parse delay (optional integer)
+        delay_text = self.var_delay.get().strip() if hasattr(self, 'var_delay') else ""
+        delay_val = ""
+        if delay_text:
+            try:
+                delay_val = int(delay_text)
+            except ValueError:
+                messagebox.showwarning("Invalid Delay", "Delay must be an integer (milliseconds) or leave blank.")
+                return
+
+        cue_dict = {"Cue": cue, "Order": order_val, "Sequence": self.var_sequence.get().strip(), "Delay": delay_val}
         for i, var in enumerate(self.switch_vars, 1):
             cue_dict[f"Switch{i}"] = bool(var.get())
 
@@ -349,6 +367,7 @@ class CueTableApp(tk.Tk):
         self.tree.column("Cue", width=240, anchor="w")
         self.tree.column("Order", width=90, anchor="e")
         self.tree.column("Sequence", width=160, anchor="center")
+        self.tree.column("Delay", width=90, anchor="center")
 
         # Layout stretch
         self.rowconfigure(0, weight=1)
@@ -571,6 +590,9 @@ class CueTableApp(tk.Tk):
         seq_menu.add_command(label="Edit Sequence File…", command=self._menu_edit_sequence)
         menubar.add_cascade(label="Sequence", menu=seq_menu)
 
+        # Run command on menubar
+        menubar.add_command(label="Run", command=self._menu_run, accelerator="F5")
+
         self.config(menu=menubar)
 
         # Shortcuts
@@ -580,6 +602,7 @@ class CueTableApp(tk.Tk):
         self.bind_all("<Control-n>", lambda e: self._menu_add_new())
         self.bind_all("<Control-e>", lambda e: self._menu_edit_selected())
         self.bind_all("<F2>",        lambda e: self._menu_edit_selected())
+        self.bind_all("<F5>",        lambda e: self._menu_run())
 
     # ------------------ File actions ------------------
     def _menu_open(self):
@@ -672,6 +695,53 @@ class CueTableApp(tk.Tk):
             messagebox.showinfo("Sequence Saved", f"Sequence saved to:\n{save_path}")
         except Exception as e:
             messagebox.showerror("Save Failed", f"Could not save sequence:\n{e}")
+
+    # ------------------ Run menu handler ------------------
+    def _menu_run(self):
+        """Build a <Cues> root from current grid and execute it via execute_sequence.
+
+        Runs in a background thread so the UI stays responsive.
+        """
+        rows = self._gather_rows()
+        if not rows:
+            messagebox.showinfo("Run Sequence", "No cues to run.")
+            return
+
+        # Build XML root
+        cues_el = ET.Element("Cues")
+        for r in rows:
+            cue_el = ET.SubElement(cues_el, "Cue")
+            cue_el.set("name", str(r.get("Cue", "")))
+            order = r.get("Order")
+            cue_el.set("order", str(order if order is not None else ""))
+            cue_el.set("sequence", str(r.get("Sequence", "")))
+            cue_el.set("delay", str(r.get("Delay", "")))
+            for i in range(1, 9):
+                s = ET.SubElement(cue_el, f"Switch{i}")
+                s.text = "true" if bool(r.get(f"Switch{i}", False)) else "false"
+
+        # Run in background thread
+        def worker():
+            self._set_busy(True)
+            try:
+                execute_sequence(
+                    cues_el,
+                    base_url=f"http://{self.device_host}",
+                    username=self.device_user,
+                    password=self.device_pass,
+                    timeout=DLI_TIMEOUT,
+                )
+            except Exception as e:
+                msg = str(e)
+                self._safe_after(0, lambda: messagebox.showerror("Run Failed", f"Sequence execution failed:\n{msg}"))
+                self._safe_after(0, lambda m=msg: self.dli_status.set(f"DLI (HTTP) error: {m}"))
+            else:
+                self._safe_after(0, lambda: messagebox.showinfo("Run Complete", "Sequence executed successfully."))
+                self._safe_after(0, lambda: self.dli_status.set("DLI (HTTP): sequence run complete"))
+            finally:
+                self._safe_after(0, lambda: self._set_busy(False))
+
+        threading.Thread(target=worker, daemon=True).start()
 
     # ------------------ Sequence XML I/O ------------------
     def _read_sequence_xml(self, path: str) -> list:
@@ -801,7 +871,7 @@ class CueTableApp(tk.Tk):
             self.tree.item(item, values=new_vals)
 
             cue = self.row_data_by_iid.get(item, {})
-            if col_name == "Order":
+            if col_name in ("Order", "Delay"):
                 try:
                     cue[col_name] = int(new_text) if new_text != "" else ""
                 except ValueError:
@@ -852,8 +922,10 @@ class CueTableApp(tk.Tk):
             order_raw = cue_el.get("order", "")
             order = self._safe_int(order_raw)
             sequence = cue_el.get("sequence", "")
+            delay_raw = cue_el.get("delay", "")
+            delay = self._safe_int(delay_raw)
 
-            cue = {"Cue": name, "Order": order, "Sequence": sequence}
+            cue = {"Cue": name, "Order": order, "Sequence": sequence, "Delay": delay}
             for i in range(1, 9):
                 tag = f"Switch{i}"
                 val_el = cue_el.find(tag)
@@ -871,6 +943,7 @@ class CueTableApp(tk.Tk):
             order = r.get("Order")
             cue_el.set("order", str(order if order is not None else ""))
             cue_el.set("sequence", str(r.get("Sequence", "")))
+            cue_el.set("delay", str(r.get("Delay", "")))
 
             for i in range(1, 9):
                 s = ET.SubElement(cue_el, f"Switch{i}")
@@ -888,6 +961,9 @@ class CueTableApp(tk.Tk):
             return int(v)
         except (ValueError, TypeError):
             return v
+
+
+    
 
     # ------------------ Table ops ------------------
     def clear_rows(self):
@@ -950,6 +1026,180 @@ class CueTableApp(tk.Tk):
         cue = self.row_data_by_iid.get(iid)
         if cue is not None and self.cue_change_callback:
             self.cue_change_callback(cue)
+
+
+def execute_sequence_from_file(xml_path, base_url="http://192.168.0.100", username="admin", password="1234", timeout=5):
+    url = f"{base_url.rstrip('/')}/restapi/relay/set_outlet_transient_states/"
+    auth = requests.auth.HTTPDigestAuth(username, password)
+
+    headers = {
+        "X-CSRF": "x",
+        "Content-Type": "application/json",
+    }
+
+    tree = ET.parse(xml_path)
+    root = tree.getroot()
+
+    if root.tag != "Cues":
+        raise ValueError(f"Expected root <Cues>, got <{root.tag}>")
+
+    cues = []
+    for cue in root.findall("Cue"):
+        order_raw = cue.get("order")
+        if order_raw is None:
+            raise ValueError("Cue missing required 'order' attribute")
+        try:
+            order = int(order_raw)
+        except ValueError as e:
+            raise ValueError(f"Invalid Cue order='{order_raw}' (must be integer)") from e
+
+        cues.append((order, cue))
+
+    cues.sort(key=lambda t: t[0])
+
+    for _, cue in cues:
+        steps = []
+
+        for child in list(cue):
+            tag = child.tag  # e.g., "Switch1"
+            if not tag.startswith("Switch"):
+                continue
+
+            num_raw = tag[len("Switch"):]  # "1"
+            if not num_raw.isdigit():
+                continue
+
+            switch_1based = int(num_raw)
+            index_0based = switch_1based - 1
+
+            text = (child.text or "").strip().lower()
+            if text not in ("true", "false"):
+                raise ValueError(f"Invalid value for <{tag}>: '{child.text}' (must be true/false)")
+
+            steps.append([index_0based, text == "true"])
+
+        if not steps:
+            raise ValueError("Cue produced no Switch settings (no <SwitchN> elements found)")
+
+        payload = [steps]
+
+        resp = requests.post(
+            url,
+            auth=auth,
+            headers=headers,
+            json=payload,
+            timeout=timeout,
+        )
+        resp.raise_for_status()
+
+        # Optional per-cue delay (milliseconds)
+        delay_raw = cue.get("delay")
+        delay_ms = 0
+        
+        if delay_raw is not None:
+            delay_raw = delay_raw.strip()
+            if delay_raw != "":
+                try:
+                    delay_ms = int(delay_raw)
+                except ValueError as e:
+                    raise ValueError(f"Invalid Cue delay='{delay_raw}' (must be integer milliseconds)") from e
+        
+        if delay_ms > 0:
+            time.sleep(delay_ms / 1000.0)
+
+
+def execute_sequence(
+    root,
+    base_url="http://192.168.0.100",
+    username="admin",
+    password="1234",
+    timeout=5,
+):
+    """
+    Execute a relay sequence defined by a <Cues> XML root Element.
+    """
+    url = f"{base_url.rstrip('/')}/restapi/relay/set_outlet_transient_states/"
+    auth = requests.auth.HTTPDigestAuth(username, password)
+
+    headers = {
+        "X-CSRF": "x",
+        "Content-Type": "application/json",
+    }
+
+    # Collect and sort cues by order
+    cues = []
+    for cue in root.findall("Cue"):
+        order_raw = cue.get("order")
+        if order_raw is None:
+            raise ValueError("Cue missing required 'order' attribute")
+
+        try:
+            order = int(order_raw)
+        except ValueError as e:
+            raise ValueError(
+                f"Invalid Cue order='{order_raw}' (must be integer)"
+            ) from e
+
+        cues.append((order, cue))
+
+    cues.sort(key=lambda t: t[0])
+
+    # Execute each cue
+    for _, cue in cues:
+        steps = []
+
+        for child in list(cue):
+            tag = child.tag
+            if not tag.startswith("Switch"):
+                continue
+
+            num_raw = tag[len("Switch"):]
+            if not num_raw.isdigit():
+                continue
+
+            switch_1based = int(num_raw)
+            index_0based = switch_1based - 1
+
+            text = (child.text or "").strip().lower()
+            if text not in ("true", "false"):
+                raise ValueError(
+                    f"Invalid value for <{tag}>: '{child.text}' (must be true/false)"
+                )
+
+            steps.append([index_0based, text == "true"])
+
+        if not steps:
+            raise ValueError(
+                "Cue produced no Switch settings (no <SwitchN> elements found)"
+            )
+
+        payload = [steps]
+
+        resp = requests.post(
+            url,
+            auth=auth,
+            headers=headers,
+            json=payload,
+            timeout=timeout,
+        )
+        resp.raise_for_status()
+
+        # Optional per-cue delay (milliseconds)
+        delay_raw = cue.get("delay")
+        delay_ms = 0
+
+        if delay_raw is not None:
+            delay_raw = delay_raw.strip()
+            if delay_raw != "":
+                try:
+                    delay_ms = int(delay_raw)
+                except ValueError as e:
+                    raise ValueError(
+                        f"Invalid Cue delay='{delay_raw}' (must be integer milliseconds)"
+                    ) from e
+
+        if delay_ms > 0:
+            time.sleep(delay_ms / 1000.0)
 
 
 if __name__ == "__main__":
